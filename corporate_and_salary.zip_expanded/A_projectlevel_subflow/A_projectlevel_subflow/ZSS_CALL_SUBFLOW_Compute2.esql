@@ -1,0 +1,46 @@
+BROKER SCHEMA A_projectlevel_subflow
+
+path A_projectlevel_subflow;
+
+CREATE COMPUTE MODULE ZSS_CALL_SUBFLOW_Compute2
+	DECLARE LOG_CONFIG_PATH EXTERNAL CHARACTER '';
+	DECLARE LOG4J_INIT_ERROR_MSG EXTERNAL CHARACTER '';
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		DECLARE domainName CHARACTER FIELDNAME(InputBody);
+		IF domainName = 'DFDL' THEN
+			SET OutputRoot.Properties = InputRoot.Properties;
+			SET OutputRoot.MQRFH2 = InputRoot.MQRFH2;
+			DECLARE encodeRef INTEGER InputRoot.Properties.Encoding;
+			DECLARE ccsidRef INTEGER InputRoot.Properties.CodedCharSetId;
+			DECLARE data BLOB ASBITSTREAM(InputRoot.DFDL ENCODING encodeRef CCSID ccsidRef SET '{ISO8583_Lib}' TYPE '{}:ISO8583WithHeader');
+			DECLARE tcpHeader BLOB ;
+			DECLARE rc BOOLEAN FALSE;
+			DECLARE logRef REFERENCE TO InputRoot.DFDL;
+			DECLARE jsonRef REFERENCE TO OutputRoot;
+			CREATE LASTCHILD OF OutputRoot AS jsonRef DOMAIN('JSON');
+			CREATE LASTCHILD OF OutputRoot.JSON AS jsonRef NAME ('Data');
+			SET jsonRef = logRef;
+			SET Environment.Variables.resMsg = getPayLoad('JSON',jsonRef,encodeRef,ccsidRef);
+			SET OutputRoot.JSON = NULL;
+			CALL initLog4j(LOG_CONFIG_PATH) INTO rc;
+			IF ( rc = FALSE ) THEN
+				SET Environment.Variables.Log4j.ErrorMsg = LOG4J_INIT_ERROR_MSG;
+			END IF;
+			CALL writeToLogFile(MessageFlowLabel, 'ZSSSubFlowLogger', 'DEBUG','===JSON Formatted Data Response====') INTO rc;
+			CALL writeToLogFile(MessageFlowLabel, 'ZSSSubFlowLogger', 'DEBUG',Environment.Variables.resMsg) INTO rc;
+			DECLARE isoData CHARACTER SUBSTRING(CAST(data AS CHARACTER) FROM 1 FOR 2) || SUBSTRING(CAST(data AS CHARACTER) FROM 7);
+			CALL writeToLogFile(MessageFlowLabel, 'ZSSSubFlowLogger', 'DEBUG','iso data after removing header:'||isoData) INTO rc;
+			SET OutputRoot.Properties.MessageType = '{}:ISO8583_1987';
+			CREATE LASTCHILD OF OutputRoot DOMAIN('DFDL')
+			PARSE(CAST(isoData AS BLOB) ENCODING encodeRef CCSID ccsidRef SET '{ISO8583_Lib}' TYPE '{}:ISO8583_1987');
+			DECLARE outDomainRef REFERENCE TO OutputRoot.DFDL;
+			CALL writeToLogFile(MessageFlowLabel, 'ZSSSubFlowLogger', 'DEBUG','OutputRoot:') INTO rc;
+			CALL writeToLogFile(MessageFlowLabel, 'ZSSSubFlowLogger', 'DEBUG',getPayLoad(FIELDNAME(OutputRoot.DFDL),outDomainRef,encodeRef,ccsidRef)) INTO rc;
+			CALL writeToLogFile(MessageFlowLabel, 'ZSSSubFlowLogger', 'DEBUG','..............end logging ZSS sub flow...........') INTO rc;
+		END IF;
+		RETURN TRUE;
+	END;
+
+
+END MODULE;
