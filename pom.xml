@@ -28,9 +28,9 @@
 			</plugin>
 			<!-- Allow embedding of version into .esql or .msgflow -->
 			<plugin>
-				<>net.wasdev.wlp.maven.plugins</groupId>
-				<artifactId>replacer</artifactId>
-				<version>1.5.0</version>
+				<groupId>net.wasdev.wlp.maven.plugins</groupId>
+                                   <artifactId>wlp-maven-plugin</artifactId>
+                                    <version>2.3.3</version>
 				<executions>
 					<execution>
 						<phase>prepare-package</phase>
